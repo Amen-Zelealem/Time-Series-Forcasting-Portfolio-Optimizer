@@ -12,3 +12,5 @@ __pycache__
 # data
 # ========================
 data
+config.bat
+node_modules
