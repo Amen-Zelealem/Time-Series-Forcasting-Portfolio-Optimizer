@@ -259,3 +259,38 @@ class DataPreprocessor:
 
         plt.tight_layout()
         plt.show()
+
+    def handle_outliers(self, data_dict, outliers_dict):
+        """
+        ✨ Handles detected outliers by replacing them with NaN for later filling.
+
+        Parameters:
+        - data_dict (dict): Dictionary containing stock data as DataFrames for each symbol.
+        - outliers_dict (dict): Dictionary containing boolean DataFrames indicating positions of outliers.
+
+        Returns:
+        - dict: Dictionary with cleaned data for each symbol where outliers have been handled.
+        """
+        cleaned_data_dict = {}
+
+        # 🔄 Iterate over each stock symbol and its corresponding data
+        for symbol, data in data_dict.items():
+            cleaned_data = data.copy()
+
+            if symbol in outliers_dict:
+                outliers = outliers_dict[symbol]
+                cleaned_data[outliers] = np.nan
+
+                # 🔄 Fill NaN values using interpolation, backfill, and forward fill
+                cleaned_data.interpolate(method="time", inplace=True)
+                cleaned_data.bfill(inplace=True)
+                cleaned_data.ffill(inplace=True)
+
+                self.logger.info(
+                    f"🔧 Outliers handled for {symbol} by setting to NaN and filling with interpolation."
+                )
+
+            cleaned_data_dict[symbol] = cleaned_data
+
+        self.logger.info("✅ Outliers handled across all data sources.")
+        return cleaned_data_dict
