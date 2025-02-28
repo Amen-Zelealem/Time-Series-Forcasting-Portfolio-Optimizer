@@ -82,3 +82,48 @@ class DataPreprocessor:
                 self.logger.error(error_message)
 
         return data_paths
+
+    def load_data(self, symbol):
+        """
+        📥 Loads data from a CSV file for a specified symbol.
+
+        Parameters:
+        - symbol (str): Stock symbol to load data for (e.g., "TSLA").
+
+        Returns:
+        - pd.DataFrame: DataFrame with loaded data, or raises FileNotFoundError if missing.
+        """
+        file_path = os.path.join(self.data_dir, f"{symbol}.csv")  
+        if os.path.exists(file_path):
+            normalized_path = file_path.replace("\\", "/")
+            self.logger.info(f"📊 Loading data for {symbol} from '{normalized_path}'.")  
+            return pd.read_csv(file_path, parse_dates=["Date"], index_col="Date")  
+        else:
+            error_message = (
+                f"❌ Data file for symbol '{symbol}' not found. Run `get_data()` first."
+            ) 
+            self.logger.error(error_message)  
+            raise FileNotFoundError(error_message)  
+
+    def inspect_data(self, data):
+        """
+        🔍 Inspects the data by checking data types, missing values, and duplicates.
+
+        Parameters:
+        - data (pd.DataFrame): DataFrame containing stock data for inspection.
+
+        Returns:
+        - dict: A dictionary containing the following inspection results:
+        - Data types of the columns.
+        - Missing values count.
+        - Duplicate rows count.
+        """
+        # Perform data inspection
+        inspection_results = {
+            "data_types": data.dtypes,  
+            "missing_values": data.isnull().sum(),  
+            "duplicate_rows": data.duplicated().sum(),  
+        }
+
+        self.logger.info(f"📋 Data inspection results:\n{inspection_results}")  
+        return inspection_results  
