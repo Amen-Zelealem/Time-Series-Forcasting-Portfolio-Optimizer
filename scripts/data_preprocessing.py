@@ -2,6 +2,10 @@ import logging
 import os
 import pandas as pd
 import pynance as pn
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import rcParams
+import math
 
 
 class DataPreprocessor:
@@ -93,17 +97,17 @@ class DataPreprocessor:
         Returns:
         - pd.DataFrame: DataFrame with loaded data, or raises FileNotFoundError if missing.
         """
-        file_path = os.path.join(self.data_dir, f"{symbol}.csv")  
+        file_path = os.path.join(self.data_dir, f"{symbol}.csv")
         if os.path.exists(file_path):
             normalized_path = file_path.replace("\\", "/")
-            self.logger.info(f"📊 Loading data for {symbol} from '{normalized_path}'.")  
-            return pd.read_csv(file_path, parse_dates=["Date"], index_col="Date")  
+            self.logger.info(f"📊 Loading data for {symbol} from '{normalized_path}'.")
+            return pd.read_csv(file_path, parse_dates=["Date"], index_col="Date")
         else:
             error_message = (
                 f"❌ Data file for symbol '{symbol}' not found. Run `get_data()` first."
-            ) 
-            self.logger.error(error_message)  
-            raise FileNotFoundError(error_message)  
+            )
+            self.logger.error(error_message)
+            raise FileNotFoundError(error_message)
 
     def inspect_data(self, data):
         """
@@ -120,10 +124,138 @@ class DataPreprocessor:
         """
         # Perform data inspection
         inspection_results = {
-            "data_types": data.dtypes,  
-            "missing_values": data.isnull().sum(),  
-            "duplicate_rows": data.duplicated().sum(),  
+            "data_types": data.dtypes,
+            "missing_values": data.isnull().sum(),
+            "duplicate_rows": data.duplicated().sum(),
         }
 
-        self.logger.info(f"📋 Data inspection results:\n{inspection_results}")  
-        return inspection_results  
+        self.logger.info(f"📋 Data inspection results:\n{inspection_results}")
+        return inspection_results
+
+    def analyze_data(self, data):
+        """
+        📊 Analyzes data by calculating basic statistics and checking for anomalies.
+
+        Parameters:
+        - data (pd.DataFrame): DataFrame containing stock data for analysis.
+
+        Returns:
+        - dict: Summary statistics including:
+        - 📈 Mean
+        - 📉 Median
+        - 📊 Standard Deviation
+        - ❓ Count of Missing Values
+        """
+        # 🧮 Calculate basic statistics
+        analysis_results = {
+            "mean": data.mean(),
+            "median": data.median(),
+            "std_dev": data.std(),
+            "missing_values": data.isnull().sum(),
+        }
+
+        # 📜 Log the analysis results for reference
+        self.logger.info(
+            f"✨ Basic statistics calculated for data:\n{analysis_results}"
+        )
+
+        return analysis_results
+
+    def detect_outliers(self, data, method="iqr", z_threshold=3):
+        """
+        🔍 Detects outliers in the stock data using either the IQR or Z-score method.
+
+        Parameters:
+        - data (pd.DataFrame): DataFrame containing stock data.
+        - method (str): Outlier detection method ('iqr' or 'z_score'). Default is 'iqr'.
+        - z_threshold (int): Z-score threshold to classify an outlier. Default is 3 (only used if method is 'z_score').
+
+        Returns:
+        - pd.DataFrame: DataFrame containing boolean values indicating outliers.
+        """
+        # 🗂️ Initialize DataFrame for outliers
+        outliers = pd.DataFrame(index=data.index)
+
+        # 📊 Analyze each relevant column for outliers
+        for col in ["Open", "High", "Low", "Close", "Adj Close", "Volume"]:
+            if col in data.columns:
+                if method == "z_score":
+                    # 🧮 Calculate Z-scores
+                    z_scores = np.abs((data[col] - data[col].mean()) / data[col].std())
+                    outliers[col] = z_scores > z_threshold
+                elif method == "iqr":
+                    # 📏 Calculate IQR and detect outliers
+                    Q1 = data[col].quantile(0.25)
+                    Q3 = data[col].quantile(0.75)
+                    IQR = Q3 - Q1
+                    outliers[col] = (data[col] < (Q1 - 1.5 * IQR)) | (
+                        data[col] > (Q3 + 1.5 * IQR)
+                    )
+
+        # 📋 Log the method used for outlier detection
+        self.logger.info(f"✨ Outliers detected using {method} method.")
+
+        return outliers
+
+    def plot_outliers(self, data, outliers, symbol):
+        """
+        📈 Plots box plots to visualize outliers in the data.
+
+        Parameters:
+        - data (pd.DataFrame): DataFrame containing stock data.
+        - outliers (pd.DataFrame): Boolean DataFrame indicating outliers.
+        """
+        rcParams["font.family"] = "sans-serif"
+        rcParams["font.sans-serif"] = ["Segoe UI Emoji", "DejaVu Sans"]
+        # 🔍 Identify columns with outliers
+        columns_with_outliers = [
+            col
+            for col in data.columns
+            if col in outliers.columns and outliers[col].any()
+        ]
+
+        if not columns_with_outliers:
+            self.logger.info("✅ No outliers detected in any columns.")
+            return
+
+        num_plots = len(columns_with_outliers)
+        grid_size = math.ceil(math.sqrt(num_plots))
+
+        # 🎨 Set up the figure and axes for plotting with increased height
+        fig, axes = plt.subplots(
+            grid_size, grid_size, figsize=(12 * grid_size, 7 * grid_size)
+        )
+        fig.suptitle(
+            f"📊 Outlier Detection for {symbol}", fontsize=18, fontweight="bold"
+        )
+
+        if num_plots == 1:
+            axes = [axes]
+        else:
+            axes = axes.ravel()
+
+        for i, col in enumerate(columns_with_outliers):
+            ax = axes[i]
+            ax.plot(data.index, data[col], label=col, color="#1f77b4", linewidth=2)
+            ax.scatter(
+                data.index[outliers[col]],
+                data[col][outliers[col]],
+                color="red",
+                s=20,
+                edgecolor="black",
+                label="Outliers",
+            )
+
+            # 📋 Customize axes
+            ax.set_title(f"{col} - Time Series with Outliers of {symbol}", fontsize=14)
+            ax.set_xlabel("Date", fontsize=12)
+            ax.set_ylabel(col, fontsize=12)
+            ax.legend()
+            ax.grid(True, linestyle="--", alpha=0.7)
+
+        # 🔒 Hide any unused subplots
+        for j in range(i + 1, len(axes)):
+            axes[j].axis("off")
+
+        plt.tight_layout()
+        plt.show()
