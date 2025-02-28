@@ -303,6 +303,144 @@ class StockDataExploration:
             except Exception as e:
                 self._log_error(f"Error analyzing seasonality for {symbol}: {str(e)}")
 
+    def adf_test(self, series):
+        """Perform ADF test for stationarity."""
+        adf_result = adfuller(series.dropna())
+        return adf_result[1]  
+    
+    def difference_series(self, series):
+        """Apply differencing to the series to make it stationary."""
+        return series.diff().dropna()
+    
+    def decompose_series(self, series, model='addictive'):
+        """Decompose the time series into trend, seasonal, and residual components."""
+        decomposition = seasonal_decompose(series.dropna(), model=model, period=252) 
+        return decomposition    
+    
+    # def analyze_trends_and_seasonality(self, data_dict, threshold=0.05):
+    #     """Analyze seasonality and trends of Tesla stock price by decomposing it."""
+    #     sns.set(style="whitegrid")
+
+    #     for symbol, df in data_dict.items():
+    #         try:
+    #             if df is None or df.empty:
+    #                 self._log_error(f"DataFrame for {symbol} is empty.")
+    #                 continue
+
+    #             # Perform ADF test for stationarity
+    #             p_value = self.adf_test(df['Close'])
+                
+    #             print(f"ADF test p-value for {symbol}: {p_value}")
+
+    #             # If the p-value is greater than the threshold, apply differencing
+    #             if p_value > threshold:
+    #                 print(f"{symbol} series is non-stationary. Differencing the series.")
+    #                 df['Close'] = self.difference_series(df['Close'])
+
+    #             # After differencing, check again
+    #             p_value = self.adf_test(df['Close'])
+    #             print(f"ADF test p-value after differencing for {symbol}: {p_value}")
+
+    #             # Decompose the series into trend, seasonal, and residual components
+    #             decomposition = self.decompose_series(df['Close'])
+
+    #             # Plot the decomposition results
+    #             plt.figure(figsize=(12, 8))
+    #             plt.subplot(411)
+    #             plt.plot(df['Close'], label=f'{symbol} Closing Price')
+    #             plt.title(f'{symbol} Closing Price')
+    #             plt.legend(loc='best')
+
+    #             plt.subplot(412)
+    #             plt.plot(decomposition.trend, label=f'{symbol} Trend', color='orange')
+    #             plt.title(f'{symbol} Trend')
+    #             plt.legend(loc='best')
+
+    #             plt.subplot(413)
+    #             plt.plot(decomposition.seasonal, label=f'{symbol} Seasonal', color='green')
+    #             plt.title(f'{symbol} Seasonal')
+    #             plt.legend(loc='best')
+
+    #             plt.subplot(414)
+    #             plt.plot(decomposition.resid, label=f'{symbol} Residual', color='red')
+    #             plt.title(f'{symbol} Residual')
+    #             plt.legend(loc='best')
+
+    #             plt.tight_layout()
+    #             plt.show()
+
+    #         except Exception as e:
+    #             self._log_error(f"Error analyzing {symbol}: {str(e)}")
+
+    def analyze_trends_and_seasonality(self, data_dict, threshold=0.05):
+        """Analyze seasonality and trends of stock prices by decomposing them."""
+        sns.set(style="whitegrid")
+
+        # Define a pastel color palette for the plots
+        colors = {
+            'closing_price': '#1f77b4',  
+            'trend': '#ff7f0e',           
+            'seasonal': '#2ca02c',        
+            'residual': '#FF677D'        
+        }
+
+        for symbol, df in data_dict.items():
+            try:
+                if df is None or df.empty:
+                    self._log_error(f"DataFrame for {symbol} is empty.")
+                    continue
+
+                # Perform ADF test for stationarity
+                p_value = self.adf_test(df['Close'])
+                
+                print(f"ADF test p-value for {symbol}: {p_value}")
+
+                # If the p-value is greater than the threshold, apply differencing
+                if p_value > threshold:
+                    print(f"{symbol} series is non-stationary. Differencing the series.")
+                    df['Close'] = self.difference_series(df['Close'])
+
+                # After differencing, check again
+                p_value = self.adf_test(df['Close'])
+                print(f"ADF test p-value after differencing for {symbol}: {p_value}")
+
+                # Decompose the series into trend, seasonal, and residual components
+                decomposition = self.decompose_series(df['Close'])
+
+                # Plot the decomposition results
+                plt.figure(figsize=(14, 10))
+
+                plt.subplot(411)
+                plt.plot(df['Close'], label=f'{symbol} Closing Price', color=colors['closing_price'])
+                plt.title(f'{symbol} Closing Price', fontsize=16)
+                plt.legend(loc='best')
+                plt.grid(axis='y', linestyle='--')
+
+                plt.subplot(412)
+                plt.plot(decomposition.trend, label=f'{symbol} Trend', color=colors['trend'])
+                plt.title(f'{symbol} Trend', fontsize=16)
+                plt.legend(loc='best')
+                plt.grid(axis='y', linestyle='--')
+
+                plt.subplot(413)
+                plt.plot(decomposition.seasonal, label=f'{symbol} Seasonal', color=colors['seasonal'])
+                plt.title(f'{symbol} Seasonal', fontsize=16)
+                plt.legend(loc='best')
+                plt.grid(axis='y', linestyle='--')
+
+                plt.subplot(414)
+                plt.plot(decomposition.resid, label=f'{symbol} Residual', color=colors['residual'])
+                plt.title(f'{symbol} Residual', fontsize=16)
+                plt.legend(loc='best')
+                plt.grid(axis='y', linestyle='--')
+
+                plt.tight_layout()
+                plt.show()
+
+            except Exception as e:
+                self._log_error(f"Error analyzing {symbol}: {str(e)}")
+
+
     def _log_error(self, message):
         """Logs error messages to the log file."""
         if self.logger:
